@@ -110,6 +110,24 @@ function rowDescriptionMessage(fields: string[], sampleRow?: Record<string, unkn
 }
 
 /**
+ * Safely extracts field names (string[]) from a pg QueryResult.
+ * pg's QueryResult.fields is FieldDef[] (objects with .name, .tableID, etc.),
+ * NOT string[]. Using FieldDef objects directly as row-object keys produces
+ * undefined for every column, resulting in all-NULL DataRows.
+ */
+function extractFieldNames(
+  result: { fields?: Array<string | { name: string }>; rows?: Record<string, unknown>[] } | undefined
+): string[] {
+  if (result?.fields?.length) {
+    return result.fields.map((f) =>
+      typeof f === "string" ? f : (f as { name: string }).name
+    );
+  }
+  if (result?.rows?.[0]) return Object.keys(result.rows[0]);
+  return [];
+}
+
+/**
  * Creates a DataRow message ('D').
  */
 function dataRowMessage(fields: string[], row: Record<string, unknown>): Buffer {
@@ -258,7 +276,7 @@ export function startPgProxyServer(port = 5433): net.Server {
               try {
                 const { result } = await executeQuery(sql, [], { sessionId });
                 const rows = result.rows ?? [];
-                const fields = result.fields?.length ? result.fields : (rows[0] ? Object.keys(rows[0]) : []);
+                const fields = extractFieldNames(result);
 
                 const resMsgs: Buffer[] = [];
                 if (fields.length > 0) {
@@ -403,11 +421,11 @@ export function startPgProxyServer(port = 5433): net.Server {
                 socket.write(createMessage("t", pBuf)); // ParameterDescription ('t')
               }
 
-              const rows = portal?.result?.rows ?? [];
-              const fields = portal?.result?.fields?.length ? portal.result.fields : (rows[0] ? Object.keys(rows[0]) : []);
+              const fields = extractFieldNames(portal?.result);
 
               if (fields.length > 0) {
-                socket.write(rowDescriptionMessage(fields, rows[0]));
+                const sampleRow = portal?.result?.rows?.[0];
+                socket.write(rowDescriptionMessage(fields, sampleRow));
               } else {
                 socket.write(createMessage("n", Buffer.alloc(0))); // NoData ('n')
               }
@@ -432,7 +450,7 @@ export function startPgProxyServer(port = 5433): net.Server {
 
               const result = portal.result;
               const rows = result?.rows ?? [];
-              const fields = result?.fields?.length ? result.fields : (rows[0] ? Object.keys(rows[0]) : []);
+              const fields = extractFieldNames(result);
 
               const resMsgs: Buffer[] = [];
               for (const row of rows) {
@@ -440,6 +458,19 @@ export function startPgProxyServer(port = 5433): net.Server {
               }
               resMsgs.push(commandCompleteMessage(portal.sql, result?.rowCount ?? rows.length));
               socket.write(Buffer.concat(resMsgs));
+              break;
+            }
+
+            // 'C' = Close (Extended Protocol) — client closes a prepared statement or portal
+            case "C": {
+              const closeType = String.fromCharCode(msgBody[0]);
+              const closeName = msgBody.subarray(1, msgBody.indexOf(0, 1)).toString("utf8");
+              if (closeType === "S") {
+                statements.delete(closeName);
+              } else if (closeType === "P") {
+                portals.delete(closeName);
+              }
+              socket.write(createMessage("3", Buffer.alloc(0))); // CloseComplete ('3')
               break;
             }
 
