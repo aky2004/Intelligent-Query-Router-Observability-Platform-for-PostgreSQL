@@ -1,0 +1,39 @@
+# Render Infrastructure-as-Code blueprint for pg-router-ai
+services:
+  - type: web
+    name: pg-router-ai-backend
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
+    context: ./backend
+    plan: free
+    region: oregon
+    healthCheckPath: /docs
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: PG_PROXY_PORT
+        value: 5433
+      - key: SIMULATE_DB
+        value: "false"
+      - key: AUTH_DISABLED
+        value: "false"
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: REDIS_URL
+        sync: false
+      - key: AWS_REGION
+        value: us-east-1
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: BEDROCK_MODEL_ID
+        value: deepseek.v3.2
+      - key: SUPABASE_URL
+        value: https://audtuvexejqddwaqjjkf.supabase.co
+      - key: SUPABASE_ANON_KEY
+        value: sb_publishable_X8DuabHaUmOXAhd9bGxL2A_xxwKl7Yp
