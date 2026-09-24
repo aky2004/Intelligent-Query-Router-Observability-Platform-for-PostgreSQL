@@ -27,7 +27,7 @@ export function PageHeader({ title, sub, children }: { title: string; sub?: stri
   );
 }
 
-export function Panel({ title, action, children, className }: { title?: string; action?: ReactNode; children: ReactNode; className?: string }) {
+export function Panel({ title, action, children, className, bodyClassName }: { title?: string; action?: ReactNode; children: ReactNode; className?: string; bodyClassName?: string }) {
   return (
     <Card className={cn("gap-0 p-0", className)}>
       {title && (
@@ -36,7 +36,7 @@ export function Panel({ title, action, children, className }: { title?: string; 
           {action}
         </div>
       )}
-      <div className="p-4">{children}</div>
+      <div className={cn("p-4", bodyClassName)}>{children}</div>
     </Card>
   );
 }

@@ -17,6 +17,7 @@ export interface DbNode {
   maxConnections: number;
   latencyMs: number;
   queriesRouted: number;
+  connectionString?: string | undefined;
 }
 
 export interface MetricPoint {

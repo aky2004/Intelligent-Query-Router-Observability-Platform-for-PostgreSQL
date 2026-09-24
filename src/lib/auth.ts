@@ -87,10 +87,11 @@ export async function refreshSession(): Promise<SessionUser | null> {
       authStore.set(null);
       return null;
     }
-    const user = firebaseAuth.currentUser;
+    const auth = firebaseAuth;
+    const user = auth.currentUser;
     if (!user) {
       return new Promise((resolve) => {
-        const unsubscribe = onAuthStateChanged(firebaseAuth, async (u) => {
+        const unsubscribe = onAuthStateChanged(auth, async (u) => {
           unsubscribe();
           if (u) {
             const token = await u.getIdToken();

@@ -20,6 +20,7 @@ interface DashboardRes {
 interface NodeRes {
   id: string; name: string; role: "primary" | "replica"; status: "healthy" | "degraded" | "unhealthy";
   poolUsage: { current: number; max: number }; throughput: number; avgLatency: number; replicaLag?: number | null; lastChecked: string; host?: string;
+  connectionString?: string;
 }
 export interface AlertRes {
   id: string; severity: "CRITICAL" | "WARNING" | "INFO"; type: string; message: string;
@@ -37,6 +38,7 @@ export const mapNode = (n: NodeRes): DbNode => ({
   id: n.name ?? n.id, role: n.role, host: n.host ?? n.id, status: n.status === "unhealthy" ? "down" : n.status,
   lagMs: n.replicaLag ?? 0, connections: n.poolUsage.current, maxConnections: n.poolUsage.max, latencyMs: n.avgLatency,
   queriesRouted: sim.get().nodes.find((x) => x.id === (n.name ?? n.id))?.queriesRouted ?? 0,
+  connectionString: n.connectionString ?? sim.get().nodes.find((x) => x.id === (n.name ?? n.id))?.connectionString,
 });
 export const mapAlert = (a: AlertRes): Alert => ({
   id: a.id, t: new Date(a.details.detectedAt).getTime(), severity: a.severity.toLowerCase() as Severity,
