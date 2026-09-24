@@ -96,10 +96,22 @@ function Anomalies() {
         </Panel>
         <div className="space-y-3">
           <Panel title="Frequency">
-            <div className="h-40"><ResponsiveContainer><BarChart data={trend}><CartesianGrid stroke={chartTheme.grid} vertical={false} /><XAxis dataKey="label" tick={chartTheme.axis} minTickGap={20} /><YAxis tick={chartTheme.axis} width={24} allowDecimals={false} /><Tooltip contentStyle={chartTheme.tooltip} /><Bar dataKey="critical" stackId="a" fill="var(--color-destructive)" /><Bar dataKey="other" stackId="a" fill="var(--color-warning)" /></BarChart></ResponsiveContainer></div>
+            <div className="h-40">
+              {trend.some((t) => t.critical > 0 || t.other > 0) ? (
+                <ResponsiveContainer><BarChart data={trend}><CartesianGrid stroke={chartTheme.grid} vertical={false} /><XAxis dataKey="label" tick={chartTheme.axis} minTickGap={20} /><YAxis tick={chartTheme.axis} width={24} allowDecimals={false} /><Tooltip contentStyle={chartTheme.tooltip} /><Bar dataKey="critical" stackId="a" fill="var(--color-destructive)" /><Bar dataKey="other" stackId="a" fill="var(--color-warning)" /></BarChart></ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center font-mono text-xs text-muted-foreground">No anomaly events in this window</div>
+              )}
+            </div>
           </Panel>
           <Panel title="Patterns">
-            <div className="h-48"><ResponsiveContainer><BarChart data={byReason} layout="vertical"><XAxis type="number" tick={chartTheme.axis} allowDecimals={false} /><YAxis type="category" dataKey="reason" tick={chartTheme.axis} width={96} /><Tooltip contentStyle={chartTheme.tooltip} /><Bar dataKey="count" fill="var(--color-chart-1)" radius={[0, 3, 3, 0]} /></BarChart></ResponsiveContainer></div>
+            <div className="h-48">
+              {byReason.length > 0 ? (
+                <ResponsiveContainer><BarChart data={byReason} layout="vertical"><XAxis type="number" tick={chartTheme.axis} allowDecimals={false} /><YAxis type="category" dataKey="reason" tick={chartTheme.axis} width={96} /><Tooltip contentStyle={chartTheme.tooltip} /><Bar dataKey="count" fill="var(--color-chart-1)" radius={[0, 3, 3, 0]} /></BarChart></ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center font-mono text-xs text-muted-foreground">No anomalous query patterns identified</div>
+              )}
+            </div>
           </Panel>
         </div>
       </div>

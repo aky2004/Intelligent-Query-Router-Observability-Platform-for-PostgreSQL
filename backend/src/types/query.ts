@@ -27,6 +27,7 @@ export interface QueryResult<T = Record<string, unknown>> {
   nodeId: string;
   target: RouteTarget;
   fields: string[];
+  fromCache?: boolean;
 }
 
 export interface QueryPlan {
@@ -54,4 +55,5 @@ export interface QueryStats {
   reads: number;
   errors: number;
   avgDurationMs: number;
+  cacheHits: number;
 }

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6ee7b7"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background rounded squircle -->
+  <rect width="64" height="64" rx="16" fill="url(#bgGrad)"/>
+  <rect width="64" height="64" rx="16" stroke="#10b981" stroke-width="2" stroke-opacity="0.3"/>
+
+  <!-- Database Stack / Pooler Rings -->
+  <!-- Top cylinder cap -->
+  <ellipse cx="32" cy="18" rx="16" ry="6" fill="url(#accentGrad)" filter="url(#glow)"/>
+  
+  <!-- Middle cylinder -->
+  <path d="M16 18v10c0 3.3 7.2 6 16 6s16-2.7 16-6V18" stroke="url(#primaryGrad)" stroke-width="2.5" fill="none"/>
+  <ellipse cx="32" cy="28" rx="16" ry="5.5" fill="#0f172a" fill-opacity="0.6"/>
+
+  <!-- Bottom cylinder -->
+  <path d="M16 28v10c0 3.3 7.2 6 16 6s16-2.7 16-6V28" stroke="url(#primaryGrad)" stroke-width="2.5" fill="none"/>
+  <ellipse cx="32" cy="38" rx="16" ry="5.5" fill="#0f172a" fill-opacity="0.8"/>
+
+  <!-- Ping Pulse / Router Nodes -->
+  <!-- Central Ping Pulse Beacon -->
+  <circle cx="32" cy="48" r="4.5" fill="#34d399" filter="url(#glow)"/>
+  <circle cx="32" cy="48" r="8" stroke="#34d399" stroke-width="1.5" stroke-dasharray="2 3" stroke-opacity="0.6"/>
+
+  <!-- Left Replica Route Node -->
+  <circle cx="17" cy="50" r="3" fill="#10b981"/>
+  <!-- Right Replica Route Node -->
+  <circle cx="47" cy="50" r="3" fill="#10b981"/>
+
+  <!-- Routing Connection Lines -->
+  <path d="M20 50h8M36 50h8" stroke="#34d399" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M32 40v3.5" stroke="#34d399" stroke-width="2" stroke-linecap="round"/>
+</svg>

@@ -9,7 +9,9 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "seed": "bun scripts/seed.js",
+    "seed:sql-only": "psql \"$PRIMARY_DATABASE_URL\" -f backend/migrations/002_seed.sql"
   },
   "overrides": {
     "rolldown": "1.2.1"

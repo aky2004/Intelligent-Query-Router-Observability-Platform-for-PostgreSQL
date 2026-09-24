@@ -15,6 +15,26 @@ const recent: Array<{ normalized: string; at: number; durationMs: number }> = []
 
 export const embedQuery = async (normalized: string): Promise<number[]> => (await embed(normalized)).vector;
 
+export const checkVectorSimilarity = async (
+  normalized: string,
+): Promise<{ similarityScore: number; isAnomalous: boolean }> => {
+  try {
+    const history = await getPatternHistory();
+    const { vector } = await embed(normalized);
+    if (!history.length) return { similarityScore: 1.0, isAnomalous: false };
+    const maxSim = history.reduce((best, pattern) => {
+      const similarity = cosineSimilarity(vector, pattern.embedding);
+      return Math.max(best, similarity);
+    }, 0);
+    return {
+      similarityScore: maxSim,
+      isAnomalous: history.length >= 5 && maxSim < SIMILARITY_THRESHOLD,
+    };
+  } catch {
+    return { similarityScore: 1.0, isAnomalous: false };
+  }
+};
+
 export const getPatternHistory = async (): Promise<QueryPattern[]> => {
   const cache = getCache();
   const raw = await cache.lrange(redisKeys.patternHistory, 0, appConfig.thresholds.anomalyWindow - 1);

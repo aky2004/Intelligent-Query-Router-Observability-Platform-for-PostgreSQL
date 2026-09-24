@@ -33,14 +33,6 @@ export const Route = createFileRoute("/replay")({
 interface Captured { sql: string; durationMs: number; offsetMs: number }
 interface Outcome extends Captured { replayMs: number; match: boolean }
 
-function demoCapture(): Captured[] {
-  let off = 0;
-  return Array.from({ length: 120 }, () => {
-    off += Math.random() * 400;
-    return { sql: sim.sampleQueries[Math.floor(Math.random() * sim.sampleQueries.length)]!, durationMs: 2 + Math.random() * 60, offsetMs: off };
-  });
-}
-
 function Replay() {
   const [capture, setCapture] = useState<Captured[] | null>(null);
   const [fileName, setFileName] = useState("");
@@ -144,7 +136,6 @@ function Replay() {
             <span className="text-sm">{fileName || "Upload capture file (.jsonl)"}</span>
             <input type="file" accept=".jsonl,.json,.log,.txt" className="hidden" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
           </label>
-          <Button variant="link" size="sm" className="mt-1 px-0" onClick={() => { setCapture(demoCapture()); setFileName("demo-capture.jsonl"); setDone([]); }}>or load a demo capture</Button>
           <div className="mt-4 space-y-4">
             <div>
               <div className="mb-1.5 text-xs text-muted-foreground">Speed</div>

@@ -60,3 +60,77 @@ export function useAIAnalysis(sql: string, executionTime?: number) {
   }, [debounced, executionTime]);
   return { data, loading };
 }
+
+export interface PoolNodePressure {
+  nodeId: string;
+  role: "primary" | "replica";
+  connections: { total: number; idle: number; waiting: number; active: number; pressure: number };
+  circuitBreaker: { state: "CLOSED" | "OPEN" | "HALF_OPEN"; failures: number };
+  healthy: boolean;
+  responseTimeMs: number;
+}
+
+/** Polls /api/pool/pressure every 3s — real-time connection pool health. */
+export function usePoolPressure() {
+  const [data, setData] = useState<PoolNodePressure[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!isBackendConfigured()) { setLoading(false); return; }
+    let cancelled = false;
+    const fetch = () =>
+      api<{ nodes: PoolNodePressure[] }>("/api/pool/pressure", { retries: 1 })
+        .then((r) => !cancelled && setData(r.nodes))
+        .catch(() => {/* keep stale */})
+        .finally(() => !cancelled && setLoading(false));
+
+    void fetch();
+    const t = setInterval(fetch, 3_000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, []);
+
+  return { nodes: data, loading };
+}
+
+export interface QuerySafetyData {
+  isSafe: boolean;
+  riskScore: number;
+  riskLevel: "SAFE" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  reasons: string[];
+  suggestions: string[];
+  vectorAnomaly?: {
+    similarityScore: number;
+    isAnomalous: boolean;
+  };
+  evaluatedBy: "deepseek-bedrock" | "cached" | "heuristic-fallback";
+  evaluatedAt: string;
+}
+
+export function useQuerySafety(sql: string) {
+  const debounced = useDebounce(sql, 800);
+  const [safety, setSafety] = useState<QuerySafetyData | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isBackendConfigured() || !debounced.trim()) {
+      setSafety(null);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    api<{ safety: QuerySafetyData }>("/api/ai/safety", {
+      method: "POST",
+      json: { sql: debounced },
+      retries: 1,
+    })
+      .then((r) => !cancelled && setSafety(r.safety))
+      .catch(() => !cancelled && setSafety(null))
+      .finally(() => !cancelled && setLoading(false));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [debounced]);
+
+  return { safety, loading };
+}

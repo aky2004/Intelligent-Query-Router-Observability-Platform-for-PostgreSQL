@@ -21,12 +21,14 @@ export const recordQueryMetrics = async (input: QueryMetricInput): Promise<void>
 
   await cache.lpush(redisKeys.queryHistory, JSON.stringify(entry));
   await cache.ltrim(redisKeys.queryHistory, 0, MAX_SERIES_POINTS - 1);
+  await cache.expire(redisKeys.queryHistory, 86400); // 24 hours
 
   await cache.lpush(
     redisKeys.timeSeries("duration"),
     JSON.stringify({ timestamp: entry.timestamp, value: input.durationMs } satisfies TimeSeriesPoint),
   );
   await cache.ltrim(redisKeys.timeSeries("duration"), 0, MAX_SERIES_POINTS - 1);
+  await cache.expire(redisKeys.timeSeries("duration"), 86400);
 
   if (input.error) {
     await cache.lpush(
@@ -34,6 +36,7 @@ export const recordQueryMetrics = async (input: QueryMetricInput): Promise<void>
       JSON.stringify({ timestamp: entry.timestamp, value: 1 } satisfies TimeSeriesPoint),
     );
     await cache.ltrim(redisKeys.timeSeries("errors"), 0, MAX_SERIES_POINTS - 1);
+    await cache.expire(redisKeys.timeSeries("errors"), 86400);
   }
 
   if (input.durationMs > appConfig.thresholds.slowQueryMs) {
@@ -45,6 +48,7 @@ export const recordQueryMetrics = async (input: QueryMetricInput): Promise<void>
     };
     await cache.lpush(redisKeys.slowQueries, JSON.stringify(record));
     await cache.ltrim(redisKeys.slowQueries, 0, MAX_SLOW_QUERIES - 1);
+    await cache.expire(redisKeys.slowQueries, 86400 * 7); // 7 days
   }
 };
 

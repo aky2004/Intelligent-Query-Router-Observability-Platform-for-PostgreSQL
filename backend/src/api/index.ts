@@ -22,9 +22,17 @@ export const createApp = (): express.Express => {
   const app = express();
 
   app.use(
+    helmet({
+      // "same-origin" (Helmet default) blocks Firebase Auth popup flow from
+      // reading window.closed across origins. "same-origin-allow-popups"
+      // keeps COOP protection while allowing the OAuth popup handshake.
+      crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+    }),
+  );
+  app.use(
     cors({
       origin: (origin, callback) => {
-        // Echo back incoming origin for credentials: true compliance
+        // Allow requests with no origin (like mobile apps or curl) or echo back origin for credentials compliance
         if (!origin) return callback(null, true);
         callback(null, origin);
       },

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Play, FileSearch, Sparkles, Check, History, Users } from "lucide-react";
+import { Play, FileSearch, Sparkles, Check, History, Users, ShieldCheck, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,7 +11,7 @@ import { fmtMs, fmtTime } from "@/lib/format";
 import { sim, useSim } from "@/lib/sim";
 import { api, errorMessage } from "@/lib/api";
 import { socketService } from "@/lib/socket";
-import { useAIAnalysis, useAction } from "@/hooks/use-backend";
+import { useAIAnalysis, useAction, useQuerySafety } from "@/hooks/use-backend";
 import { Input } from "@/components/ui/input";
 import { Loader2, Wand2 } from "lucide-react";
 
@@ -20,7 +20,26 @@ function toPlan(raw: unknown, sql: string): PlanNode {
   try { return parseExplainJson(raw); } catch { return (raw as PlanNode).type ? (raw as PlanNode) : simulatePlan(sql); }
 }
 const ROOM = "query-editor-default";
-interface ExecRes { results: Record<string, unknown>[]; rowCount: number; executionTime: string; routedTo: string; queryPlan?: unknown }
+interface ExecRes {
+  results: Record<string, unknown>[];
+  rowCount: number;
+  executionTime: string;
+  routedTo: string;
+  target?: string;
+  routingReason?: string;
+  fromCache?: boolean;
+  sessionId?: string;
+  safety?: {
+    isSafe: boolean;
+    riskScore: number;
+    riskLevel: string;
+    reasons: string[];
+    suggestions: string[];
+    vectorAnomaly?: { similarityScore: number; isAnomalous: boolean };
+    evaluatedBy: string;
+  };
+  queryPlan?: unknown;
+}
 interface HistoryRes { queries: { id: string; sql: string; executedAt: string; duration: number | string; status: string }[] }
 
 export const Route = createFileRoute("/explorer")({
@@ -115,6 +134,7 @@ function Explorer() {
   const route = useMemo(() => routeFor(collab.text), [collab.text]);
   const live = useSim((st) => st.source === "live");
   const remote = useAIAnalysis(live ? collab.text : "", result?.ms);
+  const { safety: querySafety, loading: safetyLoading } = useQuerySafety(live ? collab.text : "");
   const local = useMemo(() => analyze(collab.text, result?.plan ?? simulatePlan(collab.text)), [collab.text, result?.plan]);
   const suggestions: Suggestion[] = remote.data
     ? remote.data.map((r, i) => ({ id: `ai-${i}-${r.type}`, kind: r.type, title: r.type.replace(/_/g, " ").toLowerCase(), detail: r.message, confidence: r.confidence, improvement: parseFloat(r.estimatedImprovement ?? "0") || 0, ...(r.sql ? { sql: r.sql } : {}) }))
@@ -132,13 +152,34 @@ function Explorer() {
   const runRemote = async (explain: boolean) => {
     setRunning(true);
     try {
-      const r = await api<ExecRes>("/api/query/execute", { method: "POST", json: { sql: collab.text, useExplain: explain, targetNode: "auto" } });
+      const sessionId = collab.me?.id ?? "editor-session";
+      const r = await api<ExecRes>("/api/query/execute", {
+        method: "POST",
+        json: { sql: collab.text, useExplain: explain, targetNode: "auto", sessionId, checkSafety: true },
+      });
       const rows = r.results ?? [];
       const columns = rows[0] ? Object.keys(rows[0]) : ["rows_affected"];
+      const messages = [
+        `[${fmtTime(Date.now())}] routed to ${r.routedTo} (${r.target ?? "node"}) — ${r.routingReason ?? "normal"}`,
+      ];
+      if (r.safety) {
+        messages.push(
+          `[${fmtTime(Date.now())}] 🛡️ DeepSeek Bedrock: ${r.safety.riskLevel} (${r.safety.reasons[0] ?? "Verified safe"})`
+        );
+      }
+      messages.push(
+        r.fromCache
+          ? `[${fmtTime(Date.now())}] ⚡ Query served from Redis cache`
+          : `[${fmtTime(Date.now())}] ${r.rowCount} rows · ${r.executionTime}`
+      );
       setResult({
-        columns, rows: rows.length ? rows : [{ rows_affected: r.rowCount }], node: r.routedTo, reason: "routed by backend",
-        ms: parseFloat(r.executionTime) || 0, plan: toPlan(r.queryPlan, collab.text),
-        messages: [`[${fmtTime(Date.now())}] routed to ${r.routedTo}`, `[${fmtTime(Date.now())}] ${r.rowCount} rows · ${r.executionTime}`],
+        columns,
+        rows: rows.length ? rows : [{ rows_affected: r.rowCount }],
+        node: r.routedTo,
+        reason: r.routingReason ?? "routed by backend",
+        ms: parseFloat(r.executionTime) || 0,
+        plan: toPlan(r.queryPlan, collab.text),
+        messages,
       });
       setTab(explain ? "plan" : "results");
       void loadHistory();
@@ -148,18 +189,7 @@ function Explorer() {
   };
 
   const run = (explain: boolean) => {
-    if (live) return void runRemote(explain);
-    setRunning(true);
-    const t0 = performance.now();
-    setTimeout(() => {
-      const r = routeFor(collab.text);
-      const plan = simulatePlan(collab.text);
-      const isSelect = /^\s*select/i.test(collab.text);
-      const data = isSelect ? simulateRows(collab.text) : { columns: ["rows_affected"], rows: [{ rows_affected: 1 }] };
-      setResult({ ...data, node: r.target, reason: r.reason, ms: plan.timeMs + (performance.now() - t0), plan, messages: [`[${fmtTime(Date.now())}] routed to ${r.target} — ${r.reason}`, `[${fmtTime(Date.now())}] ${isSelect ? `${data.rows.length} rows returned` : "1 row affected"}`] });
-      setTab(explain ? "plan" : "results");
-      setRunning(false);
-    }, 250 + Math.random() * 300);
+    void runRemote(explain);
   };
 
   return (
@@ -175,7 +205,37 @@ function Explorer() {
 
       <div className="grid gap-3 xl:grid-cols-[1fr_360px]">
         <div className="grid min-w-0 gap-3 lg:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-          <Panel title="Editor" action={<span className="font-mono text-xs">→ <span className={route.target === "primary" ? "text-warning" : "text-success"}>{route.target === "primary" ? "primary" : "replica"}</span></span>}>
+          <Panel
+            title="Editor"
+            action={
+              <div className="flex items-center gap-2 font-mono text-xs">
+                {safetyLoading ? (
+                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                    <Loader2 className="size-2.5 animate-spin" /> DeepSeek checking...
+                  </span>
+                ) : querySafety ? (
+                  <span
+                    title={querySafety.reasons.join("\n")}
+                    className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                      querySafety.isSafe
+                        ? "bg-emerald-500/15 text-emerald-500"
+                        : "bg-rose-500/15 text-rose-500"
+                    }`}
+                  >
+                    {querySafety.isSafe ? <ShieldCheck className="size-3" /> : <ShieldAlert className="size-3" />}
+                    DeepSeek: {querySafety.riskLevel}
+                    {querySafety.vectorAnomaly && ` (${(querySafety.vectorAnomaly.similarityScore * 100).toFixed(0)}% vec)`}
+                  </span>
+                ) : null}
+                <span>
+                  →{" "}
+                  <span className={route.target === "primary" ? "text-warning" : "text-success"}>
+                    {route.target === "primary" ? "primary" : "replica"}
+                  </span>
+                </span>
+              </div>
+            }
+          >
             <div className="relative h-56 overflow-hidden rounded-md border bg-background font-mono text-sm leading-6">
               <pre aria-hidden className="pointer-events-none absolute inset-0 m-0 overflow-hidden whitespace-pre-wrap break-words p-3" dangerouslySetInnerHTML={{ __html: highlight(collab.text) }} />
               <textarea

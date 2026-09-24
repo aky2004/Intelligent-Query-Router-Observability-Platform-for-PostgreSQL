@@ -62,31 +62,65 @@ function Metrics() {
         </ToggleGroup>
       </PageHeader>
 
-      <div className="mb-3 grid gap-3 md:grid-cols-3">
-        {nodes.map((n) => (
-          <Panel key={n.id}>
-            <div className="mb-3 flex items-center gap-2">
-              <StatusDot status={n.status} />
-              <span className="font-mono text-sm font-semibold">{n.id}</span>
-              <span className="rounded bg-muted px-1.5 font-mono text-[10px] uppercase text-muted-foreground">{n.role}</span>
-              <span className="ml-auto text-xs capitalize text-muted-foreground">{n.status}</span>
+      <div className="mb-3">
+        {nodes.length === 0 ? (
+          <Panel>
+            <div className="py-6 text-center font-mono text-xs text-muted-foreground">
+              Connecting to router cluster nodes...
             </div>
-            <div className="mb-1 flex justify-between text-xs"><span className="text-muted-foreground">Pool</span><span className="font-mono">{n.connections}/{n.maxConnections}</span></div>
-            <Progress value={(n.connections / n.maxConnections) * 100} className="h-1.5" />
-            <dl className="mt-3 grid grid-cols-3 gap-2 font-mono text-xs">
-              <div><dt className="text-muted-foreground">latency</dt><dd>{fmtMs(n.latencyMs)}</dd></div>
-              <div><dt className="text-muted-foreground">lag</dt><dd className={n.lagMs > lagMax ? "text-warning" : ""}>{n.role === "primary" ? "—" : fmtMs(n.lagMs)}</dd></div>
-              <div><dt className="text-muted-foreground">routed</dt><dd>{fmtNum(n.queriesRouted)}</dd></div>
-            </dl>
           </Panel>
-        ))}
+        ) : (
+          <div className="grid gap-3 md:grid-cols-3">
+            {nodes.map((n) => (
+              <Panel key={n.id}>
+                <div className="mb-3 flex items-center gap-2">
+                  <StatusDot status={n.status} />
+                  <span className="font-mono text-sm font-semibold">{n.id}</span>
+                  <span className="rounded bg-muted px-1.5 font-mono text-[10px] uppercase text-muted-foreground">{n.role}</span>
+                  <span className="ml-auto text-xs capitalize text-muted-foreground">{n.status}</span>
+                </div>
+                <div className="mb-1 flex justify-between text-xs"><span className="text-muted-foreground">Pool</span><span className="font-mono">{n.connections}/{n.maxConnections}</span></div>
+                <Progress value={(n.connections / n.maxConnections) * 100} className="h-1.5" />
+                <dl className="mt-3 grid grid-cols-3 gap-2 font-mono text-xs">
+                  <div><dt className="text-muted-foreground">latency</dt><dd>{fmtMs(n.latencyMs)}</dd></div>
+                  <div><dt className="text-muted-foreground">lag</dt><dd className={n.lagMs > lagMax ? "text-warning" : ""}>{n.role === "primary" ? "—" : fmtMs(n.lagMs)}</dd></div>
+                  <div><dt className="text-muted-foreground">routed</dt><dd>{fmtNum(n.queriesRouted)}</dd></div>
+                </dl>
+              </Panel>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <Panel title="Throughput (qps)"><Chart data={data} lines={[{ key: "qps", color: "var(--color-chart-1)", name: "qps" }]} /></Panel>
-        <Panel title="Latency"><Chart data={data} unit="ms" lines={[{ key: "latency", color: "var(--color-chart-2)", name: "avg" }, { key: "p95", color: "var(--color-chart-3)", name: "p95" }]} /></Panel>
-        <Panel title="Replica lag" action={<span className="font-mono text-xs text-muted-foreground">threshold {lagMax}ms</span>}><Chart data={data} unit="ms" ref={lagMax} lines={[{ key: "lag1", color: "var(--color-chart-4)", name: "replica-1" }, { key: "lag2", color: "var(--color-chart-2)", name: "replica-2" }]} /></Panel>
-        <Panel title="Error rate & primary share"><Chart data={data} unit="%" lines={[{ key: "errorRate", color: "var(--color-chart-5)", name: "errors" }, { key: "primaryPct", color: "var(--color-chart-1)", name: "primary share" }]} /></Panel>
+        <Panel title="Throughput (qps)">
+          {data.length === 0 ? (
+            <div className="flex h-48 items-center justify-center font-mono text-xs text-muted-foreground">Waiting for query traffic...</div>
+          ) : (
+            <Chart data={data} lines={[{ key: "qps", color: "var(--color-chart-1)", name: "qps" }]} />
+          )}
+        </Panel>
+        <Panel title="Latency">
+          {data.length === 0 ? (
+            <div className="flex h-48 items-center justify-center font-mono text-xs text-muted-foreground">Waiting for query traffic...</div>
+          ) : (
+            <Chart data={data} unit="ms" lines={[{ key: "latency", color: "var(--color-chart-2)", name: "avg" }, { key: "p95", color: "var(--color-chart-3)", name: "p95" }]} />
+          )}
+        </Panel>
+        <Panel title="Replica lag" action={<span className="font-mono text-xs text-muted-foreground">threshold {lagMax}ms</span>}>
+          {data.length === 0 ? (
+            <div className="flex h-48 items-center justify-center font-mono text-xs text-muted-foreground">Waiting for query traffic...</div>
+          ) : (
+            <Chart data={data} unit="ms" ref={lagMax} lines={[{ key: "lag1", color: "var(--color-chart-4)", name: "replica-1" }, { key: "lag2", color: "var(--color-chart-2)", name: "replica-2" }]} />
+          )}
+        </Panel>
+        <Panel title="Error rate & primary share">
+          {data.length === 0 ? (
+            <div className="flex h-48 items-center justify-center font-mono text-xs text-muted-foreground">Waiting for query traffic...</div>
+          ) : (
+            <Chart data={data} unit="%" lines={[{ key: "errorRate", color: "var(--color-chart-5)", name: "errors" }, { key: "primaryPct", color: "var(--color-chart-1)", name: "primary share" }]} />
+          )}
+        </Panel>
       </div>
     </>
   );
