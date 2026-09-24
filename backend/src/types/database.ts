@@ -23,6 +23,10 @@ export interface ConnectionPoolStats {
   total: number;
   idle: number;
   waiting: number;
+  /** Currently executing queries on this node */
+  active: number;
+  /** Pool saturation 0-100% (total / (max + overflow)) */
+  pressure: number;
 }
 
 export interface TransactionState {

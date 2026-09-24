@@ -5,6 +5,7 @@ import { getLatestHealth, runHealthCheck } from "../../monitors/health-checker";
 import { getReplicationLag } from "../../monitors/lag-monitor";
 import { getNodes, getPoolStats } from "../../router/pool-manager";
 import { activeTransactions } from "../../router/transaction-state";
+import { getCache } from "../../config/redis";
 import { ok } from "../response";
 
 export const healthRouter = Router();
@@ -15,11 +16,18 @@ healthRouter.get("/health", async (_req, res, next) => {
   try {
     const nodes = getLatestHealth().length ? getLatestHealth() : await runHealthCheck();
     const healthy = nodes.every((n) => n.healthy);
+    const cache = getCache();
+    const redisHealthy = await cache.isHealthy();
+    const redisLatency = redisHealthy ? await cache.ping().catch(() => null) : null;
     ok(
       res,
       {
         status: healthy ? "healthy" : "degraded",
         simulated: databaseConfig.simulate,
+        redis: {
+          status: redisHealthy ? "connected" : "fallback",
+          latencyMs: redisLatency,
+        },
         ai: { gemini: aiEnabled.gemini(), huggingFace: aiEnabled.huggingFace() },
         nodes,
         activeTransactions: activeTransactions().length,

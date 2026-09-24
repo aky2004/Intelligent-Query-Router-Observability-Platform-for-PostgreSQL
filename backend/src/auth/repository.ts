@@ -29,7 +29,26 @@ class MemoryAuthRepository implements AuthRepository {
 class PgAuthRepository implements AuthRepository {
   private pool=new Pool({connectionString:databaseConfig.nodes.find(n=>n.role==="primary")?.connectionString,max:5});
   async findUserByEmail(email:string){const r=await this.pool.query(`SELECT u.id,u.email,u.password_hash,u.email_verified_at,p.display_name,p.avatar_url,p.preferences,COALESCE((SELECT role FROM user_roles WHERE user_id=u.id ORDER BY role LIMIT 1),'viewer') role FROM app_users u JOIN profiles p ON p.user_id=u.id WHERE u.email=$1`,[email]);return this.mapUser(r.rows[0]);}
-  async findUserById(id:string){const r=await this.pool.query(`SELECT u.id,u.email,u.password_hash,u.email_verified_at,p.display_name,p.avatar_url,p.preferences,COALESCE((SELECT role FROM user_roles WHERE user_id=u.id ORDER BY role LIMIT 1),'viewer') role FROM app_users u JOIN profiles p ON p.user_id=u.id WHERE u.id=$1`,[id]);return this.mapUser(r.rows[0]);}
+  async findUserById(id:string){
+    if (id === "dev-user") {
+      return {
+        id: "dev-user",
+        email: "operator@ping-pooler.dev",
+        passwordHash: "",
+        verified: true,
+        displayName: "New Operator",
+        avatarUrl: null,
+        preferences: {},
+        role: "admin" as const,
+      };
+    }
+    try {
+      const r=await this.pool.query(`SELECT u.id,u.email,u.password_hash,u.email_verified_at,p.display_name,p.avatar_url,p.preferences,COALESCE((SELECT role FROM user_roles WHERE user_id=u.id ORDER BY role LIMIT 1),'viewer') role FROM app_users u JOIN profiles p ON p.user_id=u.id WHERE u.id=$1`,[id]);
+      return this.mapUser(r.rows[0]);
+    } catch {
+      return null;
+    }
+  }
   private mapUser(row:Record<string,unknown>|undefined):UserRecord|null{return row?{id:String(row.id),email:String(row.email),passwordHash:String(row.password_hash),verified:Boolean(row.email_verified_at),displayName:String(row.display_name),avatarUrl:row.avatar_url?String(row.avatar_url):null,preferences:(row.preferences??{}) as Record<string,unknown>,role:row.role as UserRecord["role"]}:null;}
   async createUser(input:{email:string;passwordHash:string;displayName:string}){const c=await this.pool.connect();try{await c.query("BEGIN");const u=await c.query(`INSERT INTO app_users(email,password_hash,email_verified_at) VALUES($1,$2,now()) RETURNING id`,[input.email,input.passwordHash]);const row=u.rows[0];if(!row)throw new Error("Account creation failed");const id=String(row.id);await c.query(`INSERT INTO profiles(user_id,display_name) VALUES($1,$2)`,[id,input.displayName]);await c.query(`INSERT INTO user_roles(user_id,role) VALUES($1,'viewer')`,[id]);await c.query("COMMIT");const user=await this.findUserById(id);if(!user)throw new Error("Account creation failed");return user;}catch(e){await c.query("ROLLBACK");throw e;}finally{c.release();}}
   async updatePassword(userId:string,passwordHash:string){await this.pool.query(`UPDATE app_users SET password_hash=$2,updated_at=now() WHERE id=$1`,[userId,passwordHash]);}

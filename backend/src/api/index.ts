@@ -21,7 +21,14 @@ import { ZodError } from "zod";
 export const createApp = (): express.Express => {
   const app = express();
 
-  app.use(helmet());
+  app.use(
+    helmet({
+      // "same-origin" (Helmet default) blocks Firebase Auth popup flow from
+      // reading window.closed across origins. "same-origin-allow-popups"
+      // keeps COOP protection while allowing the OAuth popup handshake.
+      crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+    }),
+  );
   app.use(cors({ origin: appConfig.corsOrigin, credentials: true }));
   app.use(express.json({ limit: "1mb" }));
 
