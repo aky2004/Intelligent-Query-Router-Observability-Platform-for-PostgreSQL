@@ -26,6 +26,7 @@ const init = (): void => {
         ? null
         : new Pool({
             connectionString: node.connectionString,
+            ssl: node.connectionString.includes("ssl") || node.connectionString.includes("neon.tech") ? { rejectUnauthorized: false } : undefined,
             max: node.maxConnections,
             statement_timeout: databaseConfig.statementTimeoutMs,
           }),
@@ -50,7 +51,7 @@ export const addNode = (node: DatabaseNode): void => {
   init();
   nodes.set(node.id, {
     node,
-    pool: databaseConfig.simulate ? null : new Pool({ connectionString: node.connectionString, max: node.maxConnections, statement_timeout: databaseConfig.statementTimeoutMs }),
+    pool: databaseConfig.simulate ? null : new Pool({ connectionString: node.connectionString, ssl: node.connectionString.includes("ssl") || node.connectionString.includes("neon.tech") ? { rejectUnauthorized: false } : undefined, max: node.maxConnections, statement_timeout: databaseConfig.statementTimeoutMs }),
     simulated: databaseConfig.simulate ? new SimulatedClient(node) : null,
     healthy: true,
     lagMs: node.role === "replica" ? 0 : null,

@@ -21,8 +21,16 @@ import { ZodError } from "zod";
 export const createApp = (): express.Express => {
   const app = express();
 
-  app.use(helmet());
-  app.use(cors({ origin: appConfig.corsOrigin, credentials: true }));
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        // Echo back incoming origin for credentials: true compliance
+        if (!origin) return callback(null, true);
+        callback(null, origin);
+      },
+      credentials: true,
+    }),
+  );
   app.use(express.json({ limit: "1mb" }));
 
   app.use((req, res, next) => {

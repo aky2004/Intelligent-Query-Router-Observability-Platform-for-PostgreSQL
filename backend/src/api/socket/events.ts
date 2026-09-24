@@ -33,7 +33,11 @@ const verifyHandshake = async (token: unknown): Promise<{ userId: string | null;
 
 export const registerSocketEvents = (httpServer: HttpServer): Server => {
   io = new Server<ClientToServerEvents, ServerToClientEvents, never, SocketData>(httpServer, {
-    cors: { origin: appConfig.corsOrigin, methods: ["GET", "POST"] },
+    cors: {
+      origin: (origin, callback) => callback(null, origin || true),
+      credentials: true,
+      methods: ["GET", "POST"],
+    },
   });
 
   io.use(async (socket, next) => {

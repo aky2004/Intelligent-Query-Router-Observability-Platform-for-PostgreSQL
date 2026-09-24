@@ -8,7 +8,7 @@ const env = import.meta.env as Record<string, string | undefined>;
 export function getApiUrl(): string {
   if (typeof window !== "undefined") {
     const saved = window.localStorage.getItem(URL_KEY);
-    if (saved !== null) return saved;
+    if (saved !== null && saved.trim() !== "") return saved;
   }
   return (env["VITE_API_URL"] ?? "").replace(/\/$/, "");
 }
