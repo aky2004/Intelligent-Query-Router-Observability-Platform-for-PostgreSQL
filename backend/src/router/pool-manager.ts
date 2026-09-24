@@ -44,9 +44,39 @@ export interface RawResult {
   acquireMs: number; // time waiting for a free connection slot
 }
 
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import path from "path";
+
 /* ─────────────────────────────────────── state ───────────────────────────────────── */
 const nodes = new Map<string, ManagedNode>();
 let initialised = false;
+const STORE_PATH = path.resolve(process.cwd(), "data", "nodes-store.json");
+
+const persistNodes = (): void => {
+  if (databaseConfig.simulate) return;
+  try {
+    const dir = path.dirname(STORE_PATH);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    const current = [...nodes.values()].map((n) => n.node);
+    writeFileSync(STORE_PATH, JSON.stringify(current, null, 2), "utf8");
+  } catch (e) {
+    logger.warn("Failed to persist database nodes to disk", { error: String(e) });
+  }
+};
+
+const loadPersistedNodes = (): DatabaseNode[] => {
+  if (databaseConfig.simulate) return [];
+  try {
+    if (existsSync(STORE_PATH)) {
+      const raw = readFileSync(STORE_PATH, "utf8");
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {
+    logger.warn("Failed to load persisted database nodes", { error: String(e) });
+  }
+  return [];
+};
 
 /* ─────────────────────────────────────── helpers ─────────────────────────────────── */
 const makePool = (node: DatabaseNode): Pool =>
@@ -76,7 +106,12 @@ const acquireClient = async (pool: Pool): Promise<{ client: PoolClient; acquireM
 const init = (): void => {
   if (initialised) return;
   initialised = true;
-  for (const node of databaseConfig.nodes) {
+  const persisted = loadPersistedNodes();
+  const seedNodes = databaseConfig.simulate
+    ? databaseConfig.nodes
+    : (persisted.length ? persisted : databaseConfig.nodes);
+
+  for (const node of seedNodes) {
     const pool = databaseConfig.simulate ? null : makePool(node);
     nodes.set(node.id, {
       node,
@@ -106,6 +141,11 @@ export const getNodes = (): DatabaseNode[] => {
 /** Register a new node at runtime (Settings → Add node). */
 export const addNode = (node: DatabaseNode): void => {
   init();
+  // In production (non-simulate) mode, allow adding the primary if none exists yet.
+  // This is the SaaS onboarding path: user connects their own database.
+  if (node.role === "primary" && nodes.has("primary")) {
+    throw new Error("A primary node is already registered. Remove it first to replace.");
+  }
   nodes.set(node.id, {
     node,
     pool: databaseConfig.simulate ? null : makePool(node),
@@ -114,16 +154,25 @@ export const addNode = (node: DatabaseNode): void => {
     lagMs: node.role === "replica" ? 0 : null,
     activeQueries: 0,
   });
-  logger.info("Node added", { nodeId: node.id });
+  persistNodes();
+  logger.info("Node added and persisted", { nodeId: node.id, role: node.role });
 };
 
-/** Remove a replica at runtime; the primary cannot be removed. */
+/** Remove a node at runtime.
+ *  - Replicas can always be removed.
+ *  - The primary can be removed ONLY if it was dynamically registered (not env-seeded),
+ *    i.e., SIMULATE_DB is false and PRIMARY_DATABASE_URL was not set.
+ */
 export const removeNode = async (nodeId: string): Promise<boolean> => {
   init();
   const managed = nodes.get(nodeId);
-  if (!managed || managed.node.role === "primary") return false;
+  if (!managed) return false;
+  // Block removal of the env-configured primary in simulate mode
+  if (managed.node.role === "primary" && databaseConfig.simulate) return false;
   nodes.delete(nodeId);
   await managed.pool?.end().catch(() => undefined);
+  persistNodes();
+  logger.info("Node removed", { nodeId });
   return true;
 };
 

@@ -19,13 +19,22 @@ export interface ReplicaLag {
 
 /** Reads pg_stat_replication on the primary (or simulates lag when SIMULATE_DB=true). */
 export const getReplicationLag = async (): Promise<ReplicaLag[]> => {
-  const replicas = getNodes().filter((n) => n.role === "replica");
+  const nodes = getNodes();
+  const replicas = nodes.filter((n) => n.role === "replica");
   const cache = getCache();
 
+  if (replicas.length === 0) {
+    await cache.set(redisKeys.replicaLag, JSON.stringify([]), 60);
+    return [];
+  }
+
+  const hasPrimary = nodes.some((n) => n.role === "primary");
   let lagByIndex: number[] = [];
 
   if (databaseConfig.simulate) {
     lagByIndex = replicas.map(() => Math.round(Math.random() * 1400));
+  } else if (!hasPrimary) {
+    lagByIndex = replicas.map(() => 0);
   } else {
     try {
       const raw = await runOnNode("primary", LAG_SQL);

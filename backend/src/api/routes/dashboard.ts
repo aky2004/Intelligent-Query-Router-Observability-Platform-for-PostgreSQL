@@ -1,9 +1,10 @@
 /**
  * Endpoints consumed by the pg-router-ai dashboard (see README "Dashboard API").
  */
-import { mkdirSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import { Router } from "express";
+import { getCaptureStatus } from "../../replay/capture";
 import multer from "multer";
 import { z } from "zod";
 import { aiEnabled } from "../../config/ai";
@@ -98,7 +99,7 @@ const nodeView = async () => {
     let host = n.id;
     try { const u = new URL(n.connectionString); host = `${u.hostname}:${u.port || 5432}`; } catch { /* keep id */ }
     return {
-      id: n.id, name: n.id, role: n.role, status, host,
+      id: n.id, name: n.id, role: n.role, status, host, connectionString: n.connectionString,
       poolUsage: { current: h?.activeConnections ?? (p ? p.total - p.idle : 0), max: n.maxConnections },
       throughput: Math.round((recent / 60) * 100) / 100,
       avgLatency: h?.responseTimeMs ?? 0,
@@ -109,24 +110,92 @@ const nodeView = async () => {
 };
 dashboardRouter.get("/nodes", wrap(async () => ({ nodes: await nodeView() })));
 
-const nodeBody = z.object({ name: z.string().regex(/^[a-z0-9-]{2,32}$/), host: z.string().min(1).max(255), port: z.number().int().min(1).max(65535), role: z.literal("replica").default("replica"), connectionString: z.string().optional() });
+
+/**
+ * POST /api/nodes — Connect a new database node.
+ *
+ * Accepts a full PostgreSQL connection URL so users can onboard their own
+ * database (SaaS Method B). Role may be "primary" (only if none exists yet)
+ * or "replica".
+ *
+ * Body:
+ *   connectionString  string   Full postgresql:// URL (required)
+ *   role              "primary" | "replica"   default: "primary" if no primary exists, else "replica"
+ *   name              string?  Auto-derived from URL hostname if omitted
+ */
+const nodeBody = z.object({
+  connectionString: z
+    .string()
+    .min(10)
+    .refine((s) => /^postgresql:\/\/.+/.test(s) || /^postgres:\/\/.+/.test(s), {
+      message: "Must be a valid postgresql:// or postgres:// connection string",
+    }),
+  role: z.enum(["primary", "replica"]).optional(),
+  name: z
+    .string()
+    .optional()
+    .transform((val) => (val && val.trim().length > 0 ? val.trim() : undefined))
+    .refine((val) => val === undefined || /^[a-z0-9-]{2,32}$/.test(val), {
+      message: "Lowercase letters, numbers and dashes (2–32 chars)",
+    }),
+  // Legacy host:port fields — still accepted for backwards compatibility
+  host: z.string().optional(),
+  port: z.number().int().min(1).max(65535).optional(),
+});
+
 dashboardRouter.post("/nodes", wrap(async (req) => {
   const b = parseWith(nodeBody, req.body);
-  if (getNodes().some((n) => n.id === b.name)) throw new ValidationError("Node name already used");
-  addNode({ id: b.name, role: "replica", maxConnections: 10, connectionString: b.connectionString ?? `postgresql://${b.host}:${b.port}/postgres` });
-  const h = await checkHealth(b.name);
-  const node = (await nodeView()).find((n) => n.id === b.name);
-  return { node, status: h.healthy ? "connected" : "connection_failed" };
+
+  // Determine role: if no primary exists yet, default to "primary"
+  const hasPrimary = getNodes().some((n) => n.role === "primary");
+  const role: "primary" | "replica" = b.role ?? (hasPrimary ? "replica" : "primary");
+
+  // Auto-generate a stable node name from the connection string if not provided
+  let name = b.name;
+  if (!name) {
+    try {
+      const url = new URL(b.connectionString);
+      const hostPart = url.hostname.split(".")[0]!.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 20);
+      name = role === "primary" ? "primary" : `replica-${getNodes().filter((n) => n.role === "replica").length + 1}`;
+      // Use hostname-based name only if it's safe
+      if (/^[a-z0-9-]{2,32}$/.test(hostPart) && hostPart.length >= 2) {
+        name = role === "primary" ? hostPart : `${hostPart}-replica`;
+      }
+    } catch {
+      name = role === "primary" ? "primary" : `replica-${Date.now()}`;
+    }
+  }
+
+  // Ensure no duplicate IDs
+  if (getNodes().some((n) => n.id === name)) {
+    // Append a numeric suffix to avoid collision
+    name = `${name}-${getNodes().filter((n) => n.id.startsWith(name!)).length + 1}`;
+  }
+
+  if (role === "primary" && hasPrimary) {
+    throw new ValidationError("A primary node is already connected. Remove it first to replace it.");
+  }
+
+  addNode({ id: name, role, maxConnections: role === "primary" ? 20 : 10, connectionString: b.connectionString });
+  const h = await checkHealth(name);
+  const node = (await nodeView()).find((n) => n.id === name);
+  return { node, status: h.healthy ? "connected" : "connection_failed", error: h.error };
 }));
+
 dashboardRouter.delete("/nodes/:id", wrap(async (req) => {
-  if (!(await removeNode(req.params.id))) throw new NotFoundError("Replica not found (the primary cannot be removed)");
+  if (!(await removeNode(req.params.id))) {
+    throw new NotFoundError("Node not found or cannot be removed (simulated primary nodes cannot be deleted)");
+  }
   return { removed: req.params.id };
 }));
+
 dashboardRouter.post("/nodes/:id/test", wrap(async (req) => {
   if (!getNodes().some((n) => n.id === req.params.id)) throw new NotFoundError("Node not found");
   const h = await checkHealth(req.params.id);
   return { status: h.healthy ? "success" : "failed", error: h.error, latencyMs: h.responseTimeMs };
 }));
+
+
 
 /* ---------- metrics ---------- */
 let dashboardInFlight: Promise<any> | null = null;
@@ -300,6 +369,94 @@ dashboardRouter.post("/anomalies/:id/acknowledge", wrap((req) => {
 }));
 
 /* ---------- replay ---------- */
+dashboardRouter.get("/replay/live-capture", wrap(async (req) => {
+  const limit = Math.max(1, Math.min(Number(req.query.limit) || 50, 1000));
+  const status = getCaptureStatus();
+  let allQueries: Array<{ sql: string; durationMs: number; offsetMs: number; timestamp?: string }> = [];
+
+  if (status.file && existsSync(status.file)) {
+    try {
+      const raw = readFileSync(status.file, "utf8");
+      const lines = raw.split("\n").filter(Boolean);
+      allQueries = lines.map((l) => {
+        try {
+          const parsed = JSON.parse(l);
+          return {
+            sql: parsed.sql ?? parsed.query,
+            durationMs: Number(parsed.durationMs ?? parsed.duration ?? 5),
+            offsetMs: Number(parsed.offsetMs ?? 0),
+            timestamp: parsed.timestamp,
+          };
+        } catch {
+          return null;
+        }
+      }).filter(Boolean) as Array<{ sql: string; durationMs: number; offsetMs: number; timestamp?: string }>;
+    } catch { /* fallback */ }
+  }
+
+  // If capture file is empty, fallback to recent in-memory query history
+  if (allQueries.length === 0) {
+    const history = getQueryHistory(limit);
+    allQueries = history.map((q) => ({
+      sql: q.sql,
+      durationMs: q.durationMs,
+      offsetMs: 0,
+      timestamp: q.executedAt,
+    }));
+  }
+
+  // Slice the most recent `limit` queries
+  const selected = allQueries.slice(-limit);
+  const t0 = selected.length && selected[0]?.timestamp ? new Date(selected[0].timestamp).getTime() : 0;
+
+  // Recalibrate offsets relative to the start of this selected window
+  const queries = selected.map((q, idx) => ({
+    ...q,
+    offsetMs: q.timestamp && t0 ? Math.max(0, new Date(q.timestamp).getTime() - t0) : idx * 100,
+  }));
+
+  const uploadId = uuid();
+  const dir = path.resolve(appConfig.captureDir, "uploads");
+  mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `${uploadId}.jsonl`);
+  const normalized = queries.map((q) => JSON.stringify(q)).join("\n");
+  writeFileSync(file, normalized);
+  const fileName = `live-capture-latest-${queries.length}.jsonl`;
+  uploads.set(uploadId, { file, fileName, queryCount: queries.length });
+
+  return {
+    uploadId,
+    fileName,
+    totalAvailable: allQueries.length,
+    count: queries.length,
+    queries,
+    rawJsonl: normalized,
+  };
+}));
+
+dashboardRouter.get("/replay/download", (req, res, next) => {
+  try {
+    const status = getCaptureStatus();
+    if (status.file && existsSync(status.file)) {
+      res.setHeader("Content-Disposition", `attachment; filename="${path.basename(status.file)}"`);
+      res.setHeader("Content-Type", "application/x-ndjson");
+      return res.sendFile(path.resolve(status.file));
+    }
+    const history = getQueryHistory(100);
+    const content = history.map((q) => JSON.stringify({
+      timestamp: q.executedAt,
+      sql: q.sql,
+      durationMs: q.durationMs,
+      nodeId: q.decision.nodeId,
+    })).join("\n");
+    res.setHeader("Content-Disposition", 'attachment; filename="live-queries.jsonl"');
+    res.setHeader("Content-Type", "application/x-ndjson");
+    res.send(content);
+  } catch (e) {
+    next(e);
+  }
+});
+
 dashboardRouter.post("/replay/upload", upload.single("file"), wrap((req) => {
   if (!req.file) throw new ValidationError("No file uploaded (field name: file)");
   const text = req.file.buffer.toString("utf8");

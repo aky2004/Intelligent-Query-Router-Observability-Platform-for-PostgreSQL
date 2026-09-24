@@ -66,16 +66,16 @@ export const getMetrics = async (windowMs = 300_000): Promise<MetricsSnapshot> =
   const durations = metrics.map((m) => m.durationMs);
   const errors = metrics.filter((m) => m.error).length;
   const primary = metrics.filter((m) => m.target === "primary").length;
-  const total = metrics.length || 1;
+  const total = metrics.length;
 
   return {
     windowMs,
     queriesPerMinute: Math.round((metrics.length / (windowMs / 60_000)) * 100) / 100,
     avgDurationMs: average(durations),
     p95DurationMs: Math.round(percentile(durations, 95) * 100) / 100,
-    errorRate: Math.round((errors / total) * 1000) / 1000,
-    primaryShare: Math.round((primary / total) * 1000) / 1000,
-    replicaShare: Math.round(((total - primary) / total) * 1000) / 1000,
+    errorRate: total > 0 ? Math.round((errors / total) * 1000) / 1000 : 0,
+    primaryShare: total > 0 ? Math.round((primary / total) * 1000) / 1000 : 0,
+    replicaShare: total > 0 ? Math.round(((total - primary) / total) * 1000) / 1000 : 0,
     slowQueryCount: durations.filter((d) => d > appConfig.thresholds.slowQueryMs).length,
     collectedAt: nowIso(),
   };
