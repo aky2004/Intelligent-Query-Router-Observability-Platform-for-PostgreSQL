@@ -68,6 +68,13 @@ function deriveProxyUrl(connectionString: string | undefined): string {
     hostname = typeof window !== "undefined" && window.location.hostname ? window.location.hostname : "localhost";
   }
 
+  // When backend is hosted on Render (.onrender.com), use Render Private Network DNS (.render.internal)
+  // so other services on Render can connect to port 5433 over Render's internal wireguard network.
+  if (hostname.endsWith(".onrender.com")) {
+    const serviceName = hostname.replace(/\.onrender\.com$/, "");
+    hostname = `${serviceName}.render.internal`;
+  }
+
   // PG Wire Protocol TCP Proxy listens on port 5433
   const proxyHost = `${hostname}:5433`;
 
@@ -444,7 +451,7 @@ function Settings() {
 
         <Panel title="Thresholds">
           <form className="space-y-3" onSubmit={t.handleSubmit((v) => void saveThresholds(v))}>
-            {([ ["slowMs", "Slow query threshold (ms)"], ["lagMs", "Replica lag threshold (ms)"], ["window", "Anomaly detection window (queries)"] ] as const).map(([k, label]) => (
+            {([["slowMs", "Slow query threshold (ms)"], ["lagMs", "Replica lag threshold (ms)"], ["window", "Anomaly detection window (queries)"]] as const).map(([k, label]) => (
               <div key={k}>
                 <Label htmlFor={k} className="text-xs">{label}</Label>
                 <Input id={k} type="number" className="mt-1 font-mono" {...t.register(k)} />
