@@ -1,0 +1,6 @@
+node_modules
+dist
+captures
+.env
+service-account.json
+coverage
