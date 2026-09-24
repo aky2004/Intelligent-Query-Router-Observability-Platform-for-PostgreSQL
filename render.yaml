@@ -17,6 +17,8 @@ services:
         value: 5433
       - key: SIMULATE_DB
         value: "false"
+      - key: PRIMARY_DATABASE_URL
+        value: postgresql://neondb_owner:npg_5Vx8oRkHFTOl@ep-round-water-ayaa7ae1-pooler.c-5.us-east-2.aws.neon.tech/neondb?sslmode=require
       - key: AUTH_DISABLED
         value: "false"
       - key: CORS_ORIGIN
