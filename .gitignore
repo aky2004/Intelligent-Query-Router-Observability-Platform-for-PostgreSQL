@@ -11,6 +11,9 @@ lerna-debug.log*
 .env
 .env.*
 !.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
 
 # Build & cache directories
 node_modules/
@@ -21,7 +24,11 @@ dist-ssr/
 .tanstack/
 .nitro/
 captures/
+backend/captures/
+backend/data/
+backend/dist/
 coverage/
+*.jsonl
 
 # Wrangler / Cloudflare
 .wrangler/
@@ -38,3 +45,5 @@ coverage/
 *.sln
 *.sw?
 service-account.json
+backend/service-account.json
+.gemini/
