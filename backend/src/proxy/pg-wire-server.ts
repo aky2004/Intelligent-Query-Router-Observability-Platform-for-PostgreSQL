@@ -125,9 +125,14 @@ function dataRowMessage(fields: string[], row: Record<string, unknown>): Buffer 
       parts.push(nullBuf);
     } else {
       let strVal: string;
-      if (typeof val === "object") {
+      if (typeof val === "boolean") {
+        // PostgreSQL wire protocol text format: 't' or 'f' (NOT 'true'/'false')
+        // The pg client's boolean parser does `val === 't'`, so 'true' would parse as false!
+        strVal = val ? "t" : "f";
+      } else if (typeof val === "object") {
         if (val instanceof Date) {
-          strVal = val.toISOString();
+          // PostgreSQL timestamp format: 'YYYY-MM-DD HH:MM:SS.mmm' not ISO 'Z' format
+          strVal = val.toISOString().replace("T", " ").replace("Z", "");
         } else {
           strVal = JSON.stringify(val);
         }
@@ -311,9 +316,23 @@ export function startPgProxyServer(port = 5433): net.Server {
               offset = stmtEnd + 1;
 
               const stmt = statements.get(stmtName);
+
+              // Read per-parameter format codes (0 = text, 1 = binary)
+              // When numFormats=0: all params are text
+              // When numFormats=1: that one format applies to ALL params
+              // When numFormats=N: each param has its own format code
               const numFormats = msgBody.readInt16BE(offset);
               offset += 2;
-              for (let i = 0; i < numFormats; i++) offset += 2;
+              const formatCodes: number[] = [];
+              for (let i = 0; i < numFormats; i++) {
+                formatCodes.push(msgBody.readInt16BE(offset));
+                offset += 2;
+              }
+              const getFormatCode = (i: number): number => {
+                if (numFormats === 0) return 0; // all text
+                if (numFormats === 1) return formatCodes[0]!; // one code applies to all
+                return formatCodes[i] ?? 0; // per-param format
+              };
 
               const numParams = msgBody.readInt16BE(offset);
               offset += 2;
@@ -326,12 +345,30 @@ export function startPgProxyServer(port = 5433): net.Server {
                 } else {
                   const valBytes = msgBody.subarray(offset, offset + pLen);
                   offset += pLen;
-                  const str = valBytes.toString("utf8");
-                  if (/^-?\d+$/.test(str) && !str.startsWith("0")) {
-                    const num = Number(str);
-                    params.push(Number.isSafeInteger(num) ? num : str);
+                  const isBinary = getFormatCode(i) === 1;
+                  if (isBinary) {
+                    // Binary-encoded integer (e.g. LIMIT $N sent as 4-byte big-endian int)
+                    if (pLen === 4) {
+                      params.push(valBytes.readInt32BE(0));
+                    } else if (pLen === 8) {
+                      params.push(Number(valBytes.readBigInt64BE(0)));
+                    } else if (pLen === 2) {
+                      params.push(valBytes.readInt16BE(0));
+                    } else if (pLen === 1) {
+                      params.push(valBytes.readInt8(0));
+                    } else {
+                      // Unknown binary type — fall back to hex string
+                      params.push(valBytes.toString("hex"));
+                    }
                   } else {
-                    params.push(str);
+                    // Text-encoded parameter — decode as UTF-8
+                    const str = valBytes.toString("utf8");
+                    if (/^-?\d+$/.test(str) && !str.startsWith("0")) {
+                      const num = Number(str);
+                      params.push(Number.isSafeInteger(num) ? num : str);
+                    } else {
+                      params.push(str);
+                    }
                   }
                 }
               }
