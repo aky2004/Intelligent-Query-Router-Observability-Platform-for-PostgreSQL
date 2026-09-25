@@ -13,7 +13,8 @@
     "start": "node dist/server.js",
     "test": "jest",
     "lint": "tsc --noEmit",
-    "traffic": "node traffic-probe.js"
+    "traffic": "node traffic-probe.js",
+    "anomaly:simulate": "node scripts/simulate-anomalies.js"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1139.0",

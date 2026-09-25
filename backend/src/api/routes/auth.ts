@@ -1,4 +1,4 @@
-import { devAuthBypass, verifyFirebaseToken } from "../../auth/supabase";
+import { devAuthBypass, verifyFirebaseToken } from "../../auth/firebase";
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { z } from "zod";
 import { login, logout, refresh, requestReset, requestSignup, resetPassword, verifySignup } from "../../auth/service";

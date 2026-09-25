@@ -9,7 +9,7 @@ import type { ClientToServerEvents, ServerToClientEvents, SocketData } from "../
 import { logger } from "../../utils/logger";
 import { uuid } from "../../utils/helpers";
 import { verifyAccessToken } from "../../auth/tokens";
-import { devAuthBypass, verifyFirebaseToken } from "../../auth/supabase";
+import { devAuthBypass, verifyFirebaseToken } from "../../auth/firebase";
 import { runtimeSettings } from "../../config/runtime";
 import { onAlert } from "../../monitors/alert-store";
 

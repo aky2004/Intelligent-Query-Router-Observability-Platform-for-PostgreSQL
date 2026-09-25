@@ -33,7 +33,5 @@ services:
         sync: false
       - key: BEDROCK_MODEL_ID
         value: deepseek.v3.2
-      - key: SUPABASE_URL
-        value: https://audtuvexejqddwaqjjkf.supabase.co
-      - key: SUPABASE_ANON_KEY
-        value: sb_publishable_X8DuabHaUmOXAhd9bGxL2A_xxwKl7Yp
+      - key: FIREBASE_PROJECT_ID
+        value: pgpooler
