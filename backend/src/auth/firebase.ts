@@ -2,6 +2,7 @@
  * Verifies Firebase ID tokens sent by the dashboard.
  * Uses firebase-admin to validate tokens issued by Firebase Auth.
  */
+import "dotenv/config";
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import fs from "fs";

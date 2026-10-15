@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AnomaliesRouteImport } from './routes/anomalies'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as ClusterMapRouteImport } from './routes/cluster-map'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ExplorerRouteImport } from './routes/explorer'
 import { Route as MetricsRouteImport } from './routes/metrics'
@@ -36,6 +37,11 @@ const AnomaliesRoute = AnomaliesRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClusterMapRoute = ClusterMapRouteImport.update({
+  id: '/cluster-map',
+  path: '/cluster-map',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -93,6 +99,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/anomalies': typeof AnomaliesRoute
   '/auth': typeof AuthRouteWithChildren
+  '/cluster-map': typeof ClusterMapRoute
   '/dashboard': typeof DashboardRoute
   '/explorer': typeof ExplorerRoute
   '/metrics': typeof MetricsRoute
@@ -108,6 +115,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/anomalies': typeof AnomaliesRoute
   '/auth': typeof AuthRouteWithChildren
+  '/cluster-map': typeof ClusterMapRoute
   '/dashboard': typeof DashboardRoute
   '/explorer': typeof ExplorerRoute
   '/metrics': typeof MetricsRoute
@@ -124,6 +132,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/anomalies': typeof AnomaliesRoute
   '/auth': typeof AuthRouteWithChildren
+  '/cluster-map': typeof ClusterMapRoute
   '/dashboard': typeof DashboardRoute
   '/explorer': typeof ExplorerRoute
   '/metrics': typeof MetricsRoute
@@ -141,6 +150,7 @@ export interface FileRouteTypes {
     | '/'
     | '/anomalies'
     | '/auth'
+    | '/cluster-map'
     | '/dashboard'
     | '/explorer'
     | '/metrics'
@@ -156,6 +166,7 @@ export interface FileRouteTypes {
     | '/'
     | '/anomalies'
     | '/auth'
+    | '/cluster-map'
     | '/dashboard'
     | '/explorer'
     | '/metrics'
@@ -171,6 +182,7 @@ export interface FileRouteTypes {
     | '/'
     | '/anomalies'
     | '/auth'
+    | '/cluster-map'
     | '/dashboard'
     | '/explorer'
     | '/metrics'
@@ -187,6 +199,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AnomaliesRoute: typeof AnomaliesRoute
   AuthRoute: typeof AuthRouteWithChildren
+  ClusterMapRoute: typeof ClusterMapRoute
   DashboardRoute: typeof DashboardRoute
   ExplorerRoute: typeof ExplorerRoute
   MetricsRoute: typeof MetricsRoute
@@ -219,6 +232,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cluster-map': {
+      id: '/cluster-map'
+      path: '/cluster-map'
+      fullPath: '/cluster-map'
+      preLoaderRoute: typeof ClusterMapRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -308,6 +328,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AnomaliesRoute: AnomaliesRoute,
   AuthRoute: AuthRouteWithChildren,
+  ClusterMapRoute: ClusterMapRoute,
   DashboardRoute: DashboardRoute,
   ExplorerRoute: ExplorerRoute,
   MetricsRoute: MetricsRoute,

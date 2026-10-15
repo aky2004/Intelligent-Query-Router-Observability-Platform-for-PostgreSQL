@@ -4,7 +4,7 @@ import { RefreshCw } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { retryLive, startLive } from "@/lib/live";
 import { useDataSource } from "@/hooks/use-backend";
-import { Activity, AlertTriangle, Code2, Gauge, History, Settings, Database, LogOut } from "lucide-react";
+import { Activity, AlertTriangle, Code2, Gauge, History, Settings, Database, LogOut, Network } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger,
@@ -16,6 +16,7 @@ import { signOut as endSession } from "@/lib/auth";
 
 const items = [
   { title: "Dashboard", url: "/dashboard", icon: Gauge },
+  { title: "Cluster Map", url: "/cluster-map", icon: Network },
   { title: "Query Explorer", url: "/explorer", icon: Code2 },
   { title: "Metrics", url: "/metrics", icon: Activity },
   { title: "Anomalies", url: "/anomalies", icon: AlertTriangle },

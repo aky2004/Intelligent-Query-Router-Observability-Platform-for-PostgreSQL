@@ -17,6 +17,7 @@ import { getLatestHealth, runHealthCheck } from "../../monitors/health-checker";
 import { getMetrics, getSlowQueries, getTimeSeries } from "../../monitors/metrics-collector";
 import { getReplicationLag } from "../../monitors/lag-monitor";
 import { addNode, checkHealth, getNodes, getPoolStats, removeNode } from "../../router/pool-manager";
+import { inspectDatabaseSchema, seedDemoTables } from "../../router/schema-inspector";
 import { getAllBreakers } from "../../router/circuit-breaker";
 import { executeQuery, getQueryHistory, getQueryStats } from "../../router/query-router";
 import { getReplayStats, pauseReplay, replayQueries, resumeReplay, type ReplayStats } from "../../replay/replay";
@@ -109,6 +110,10 @@ const nodeView = async () => {
   });
 };
 dashboardRouter.get("/nodes", wrap(async () => ({ nodes: await nodeView() })));
+
+/* ---------- schema introspection & cluster map ---------- */
+dashboardRouter.get("/schema", wrap(async () => inspectDatabaseSchema()));
+dashboardRouter.post("/schema/seed", wrap(async () => seedDemoTables()));
 
 
 /**
