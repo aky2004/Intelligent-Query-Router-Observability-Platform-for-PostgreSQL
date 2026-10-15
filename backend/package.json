@@ -5,7 +5,7 @@
   "description": "AI-powered PostgreSQL query routing and observability platform",
   "main": "dist/server.js",
   "engines": {
-    "node": ">=18"
+    "node": ">=18 <=22"
   },
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
