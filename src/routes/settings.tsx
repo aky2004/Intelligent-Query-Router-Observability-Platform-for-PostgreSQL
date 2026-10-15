@@ -68,11 +68,10 @@ function deriveProxyUrl(connectionString: string | undefined): string {
     hostname = typeof window !== "undefined" && window.location.hostname ? window.location.hostname : "localhost";
   }
 
-  // When backend is hosted on Render (.onrender.com), use Render Private Network DNS (.render.internal)
-  // so other services on Render can connect to port 5433 over Render's internal wireguard network.
+  // When backend is hosted on Render (.onrender.com), use Render Private Network DNS hostname
+  // (Render resolves internal services simply by their service name, e.g. my-service:5433).
   if (hostname.endsWith(".onrender.com")) {
-    const serviceName = hostname.replace(/\.onrender\.com$/, "");
-    hostname = `${serviceName}.render.internal`;
+    hostname = hostname.replace(/\.onrender\.com$/, "");
   }
 
   // PG Wire Protocol TCP Proxy listens on port 5433
